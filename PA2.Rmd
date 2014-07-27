@@ -1,0 +1,146 @@
+# Storms and other severe weather events analysis
+Reproducible Research - Peer Assessment Assignment 2
+
+## Synopsis
+
+Severe weather has a large impact on health and economics, making it very important to study the value of damage and which type of severe weather has the highest impact. This report aims to explore these issues. The below analysis shows that tornado and flood is the two weather events that cause highest health and economics damage, respectively. 
+
+## Data Processing
+
+The data used in this report are obtained from NOAA Storm Database.
+
+```{r}
+destname <- 'repdata-data-StormData.csv.bz2'
+URL <- 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2'
+download.file(URL, destname, mode = 'wb')
+download_time <- Sys.time()
+download_time
+```
+
+Because of the extensiveness of the original storm data, we will load only necessary data for the analysis, including event type, the number of fatality and injury, and the value of property and crop damage.  
+
+```{r}
+data <- read.csv('repdata-data-StormData.csv.bz2', colClasses = (c(rep('NULL', 7), 
+                NA, rep('NULL', 14), NA, NA, NA, NA, NA, NA,  rep('NULL', 9))), 
+                header = TRUE, as.is = TRUE)
+
+data$PROPDMGEXP <- toupper(data$PROPDMGEXP)
+data$CROPDMGEXP <- toupper(data$CROPDMGEXP)
+
+data$EVTYPE <- factor(data$EVTYPE, levels = unique(data$EVTYPE))
+data$PROPDMGEXP <- factor(data$PROPDMGEXP, levels = unique(data$PROPDMGEXP))
+data$CROPDMGEXP <- factor(data$CROPDMGEXP, levels = unique(data$CROPDMGEXP))
+```
+
+The value of property and crop damage are calculated as below.
+
+```{r}
+# Create a dataframe and convert "H", "K", "M", and "B" into hundred, thousand, million, and billion, respectively. 
+
+damage_value <- data.frame(unit=sort(levels(data$PROPDMGEXP)), value=c(rep(1,13), 1e+09, 1e+02, 1e+03, 1e+06))
+
+for(i in damage_value$unit) {
+    data$PropDmgUnit[data$PROPDMGEXP == i] <- damage_value$value[damage_value$unit == i]
+    }
+data$PropDmgValue <- data$PROPDMG * data$PropDmgUnit
+
+for(j in damage_value$unit) {
+    data$CropDmgUnit[data$CROPDMGEXP == j] <- damage_value$value[damage_value$unit == j]
+    }
+data$CropDmgValue <- data$CROPDMG * data$CropDmgUnit
+```
+
+Similarly, the number of fatality and injury caused by each event are also calculated.
+
+```{r}
+library (plyr)
+evtype_sum <- ddply(data, ~EVTYPE, summarise, 
+        Fatalities = sum(FATALITIES), 
+        Injuries = sum(INJURIES), 
+        PropDmg = sum(PropDmgValue), 
+        CropDmg = sum(CropDmgValue))
+evtype_sum$EconDmg <- evtype_sum$PropDmg + evtype_sum$CropDmg
+evtype_sum$HealthDmg <- evtype_sum$Fatalities + evtype_sum$Injuries
+```
+
+## Results
+
+According to the above calculation, we obtain the list of events that caused highest impact on health and economics.
+
+```{r}
+highest_health_impact <- head (evtype_sum[order(-evtype_sum$HealthDmg),], 15)
+fatality <- head (evtype_sum[order(-evtype_sum$Fatalities),], 15)
+injury <- head (evtype_sum[order(-evtype_sum$Injuries),], 15)
+
+highest_econ_impact <- head(evtype_sum[order(-evtype_sum$EconDmg),], 15)
+prop <- head (evtype_sum[order(-evtype_sum$PropDmg),], 15)
+crop <- head (evtype_sum[order(-evtype_sum$CropDmg),], 15)
+
+print(highest_health_impact)
+print(highest_econ_impact)
+```
+
+According to this result, tornado is the event that causes highest number of falality, injury and thus has the highest health impact. 
+
+Excessive heat causes second highest number of fatality and health impact, while TSTM wind causes second highest number of injury. 
+
+Similarly, flood causes highest damage in terms of economics.
+
+The graphs below demonstrate the health impact of severe weather events.
+
+```{r}
+par(mfrow = c(1, 2))
+
+barplot(height = fatality$Fatalities,
+        names.arg = fatality$EVTYPE,
+        las = 2, cex.axis = 0.8, cex.names = 0.8, 
+        xlab = "",
+        ylab = "Number of Fatality")
+        
+barplot(height = injury$Injuries,
+        names.arg = injury$EVTYPE,
+        las = 2, cex.axis = 0.8, cex.names = 0.8, 
+        xlab = "",
+        ylab = "Number of Injury")
+        
+title(main = "Impacts of Weather Events on the Community Health", outer = TRUE)
+```
+
+The graphs below demonstrate the economic impact of severe weather events.
+
+```{r}
+par(mfrow = c(1,2))
+
+barplot(height = prop$PropDmg,
+        names.arg = prop$EVTYPE,
+        las = 2, cex.axis = 0.8, cex.names = 0.8, 
+        xlab = "",
+        ylab = "US Dollar")
+
+barplot(height = crop$CropDmg,
+        names.arg = crop$EVTYPE,
+        las = 2, cex.axis = 0.8, cex.names = 0.8, 
+        xlab = "",
+        ylab = "US Dollar")
+        
+title(main = "Impacts of Weather Events on Property and Crop", outer = TRUE)
+```
+
+```{r}
+par(mfrow = c(1,2))
+
+barplot(height = highest_health_impact$HealthDmg,
+        names.arg = highest_health_impact$EVTYPE,
+        las = 2, cex.axis = 0.8, cex.names = 0.8, 
+        xlab = "",
+        ylab = "Total number of fatality and injury")
+
+barplot(height = highest_econ_impact$EconDmg,
+        names.arg = highest_econ_impact$EVTYPE,
+        las = 2, cex.axis = 0.8, cex.names = 0.8, 
+        xlab = "",
+        ylab = "US Dollar")
+        
+title(main = "Impacts of Weather Events", outer = TRUE)
+```
+
